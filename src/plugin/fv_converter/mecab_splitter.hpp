@@ -34,7 +34,7 @@ class mecab_splitter : public fv_converter::word_splitter {
              std::vector<std::pair<size_t, size_t> >& ret_boundaries);
 
  private:
-  pfi::lang::scoped_ptr<MeCab::Tagger> tagger_;
+  pfi::lang::scoped_ptr<MeCab::Model> model_;
 };
 
 }
