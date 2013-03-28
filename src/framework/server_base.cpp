@@ -16,14 +16,15 @@
 
 #include "server_base.hpp"
 
+#include <time.h>
+
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <time.h>
+
 #include <glog/logging.h>
 #include <msgpack.hpp>
-
 
 #include "mixable.hpp"
 #include "mixer/mixer.hpp"
@@ -82,7 +83,8 @@ bool server_base::save(const std::string& id) {
     LOG(INFO) << "saved to " << path;
     LOG(INFO) << "    timestamp     : " << system_data_.timestamp_;
     LOG(INFO) << "    type          : " << system_data_.type_;
-    LOG(INFO) << "    is_standalone : " << std::boolalpha << system_data_.is_standalone_;
+    LOG(INFO) << "    is_standalone : "
+        << std::boolalpha << system_data_.is_standalone_;
     LOG(INFO) << "    id            : " << system_data_.id_;
     LOG(INFO) << "    config        : " << system_data_.config_;
   } catch (const std::runtime_error& e) {
@@ -106,11 +108,11 @@ bool server_base::load(const std::string& id) {
   try {
     LOG(INFO) << "starting load from " << path;
     msgpack::unpacker unpacker;
-    while(true) {
+    while (true) {
         unpacker.reserve_buffer(1024);
         ifs.read(unpacker.buffer(), unpacker.buffer_capacity());
         unpacker.buffer_consumed(ifs.gcount());
-        if(ifs.fail()) {
+        if (ifs.fail()) {
             break;
         }
     }
@@ -124,7 +126,8 @@ bool server_base::load(const std::string& id) {
     msg.get().convert(&format_version);
     if (format_version != FORMAT_VERSION) {
       throw JUBATUS_EXCEPTION(
-          jubatus::exception::runtime_error("not compatible format: " + format_version)
+          jubatus::exception::runtime_error(
+              "not compatible format: " + format_version)
           << jubatus::exception::error_file_name(path));
     }
 
@@ -134,7 +137,8 @@ bool server_base::load(const std::string& id) {
     msg.get().convert(&version);
     if (version != VERSION) {
       throw JUBATUS_EXCEPTION(
-          jubatus::exception::runtime_error("not compatible format: " + version)
+          jubatus::exception::runtime_error(
+              "not compatible format: " + version)
           << jubatus::exception::error_file_name(path));
     }
 
@@ -145,7 +149,8 @@ bool server_base::load(const std::string& id) {
     msg.get().convert(&data);
     if (data.version_ != system_data.version()) {
       throw JUBATUS_EXCEPTION(
-          jubatus::exception::runtime_error("not compatible format: " + data.version_)
+          jubatus::exception::runtime_error(
+              "not compatible format: " + data.version_)
           << jubatus::exception::error_file_name(path));
     }
     msg.get().convert(&system_data);
@@ -155,10 +160,10 @@ bool server_base::load(const std::string& id) {
     LOG(INFO) << "loaded from " << path;
     LOG(INFO) << "    timestamp     : " << system_data.timestamp_;
     LOG(INFO) << "    type          : " << system_data.type_;
-    LOG(INFO) << "    is_standalone : " << std::boolalpha << system_data.is_standalone_;
+    LOG(INFO) << "    is_standalone : "
+        << std::boolalpha << system_data.is_standalone_;
     LOG(INFO) << "    id            : " << system_data.id_;
     LOG(INFO) << "    config        : " << system_data.config_;
-
   } catch (const std::runtime_error& e) {
     ifs.close();
     LOG(ERROR) << "failed to load: " << path;
