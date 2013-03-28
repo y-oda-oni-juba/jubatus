@@ -24,6 +24,7 @@
 #include <pficommon/concurrent/rwmutex.h>
 #include <pficommon/lang/shared_ptr.h>
 
+#include "data_containor.hpp"
 #include "mixable.hpp"
 #include "server_util.hpp"
 
@@ -64,6 +65,7 @@ class server_base {
  private:
   const server_argv argv_;
   uint64_t update_count_;
+  system_data_containor system_data_;
 };
 
 }  // namespace framework
