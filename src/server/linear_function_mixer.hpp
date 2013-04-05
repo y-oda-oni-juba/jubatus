@@ -35,6 +35,8 @@ class linear_function_mixer : public jubatus::framework::mixable<
   void put_diff_impl(const diffv& v);
 
   void clear();
+
+  MSGPACK_DEFINE();
 };
 
 }  // namespace server

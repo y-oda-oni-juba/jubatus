@@ -36,6 +36,8 @@ class mixable_weight_manager : public framework::mixable<
       const fv_converter::keyword_weights& rhs,
       fv_converter::keyword_weights& acc) const;
   void clear();
+
+  MSGPACK_DEFINE();
 };
 
 }  // namespace server
