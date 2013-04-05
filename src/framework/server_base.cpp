@@ -33,9 +33,6 @@
 namespace jubatus {
 namespace framework {
 
-static const std::string VERSION(JUBATUS_VERSION);
-static const uint64_t FORMAT_VERSION = 1;
-
 namespace {
 
 std::string build_local_path(
@@ -49,6 +46,7 @@ std::string build_local_path(
 }
 
 }  // namespace
+
 
 server_base::server_base(const server_argv& a)
     : argv_(a),
@@ -67,26 +65,34 @@ bool server_base::save(const std::string& id) {
   }
   try {
     LOG(INFO) << "starting save to " << path;
-    msgpack::packer<std::ofstream> packer(&ofs);
-    packer << FORMAT_VERSION;
-    packer << VERSION;
-    system_data_.timestamp_ = time(NULL);
-    system_data_.type_ = argv_.type;
-    system_data_.is_standalone_ = argv_.is_standalone();
-    system_data_.id_ = id;
-    // TBD: system_data_.config = config;
-    packer << system_data_;
 
-    // TBD: user data containor
+    // data_header
+    data_header header(JUBATUS_VERSION);
+    ofs << header.magic_ << std::endl;
+    ofs << header.format_version_ << std::endl;
+    ofs << header.jubatus_version_ << std::endl;
+
+    // system_data
+    system_data_containor system_data;
+    system_data.version_ = system_data.current_version;
+    system_data.timestamp_ = time(NULL);
+    system_data.type_ = argv_.type;
+    system_data.is_standalone_ = argv_.is_standalone();
+    system_data.id_ = id;
+    system_data.config_ = config_;
+
+    msgpack::packer<std::ofstream> packer(&ofs);
+    packer << system_data;
+
+    // user_data
+    for (size_t i = 0; i < user_data_list_.size(); ++i) {
+      packer << *user_data_list_[i];
+    }
 
     ofs.close();
+
     LOG(INFO) << "saved to " << path;
-    LOG(INFO) << "    timestamp     : " << system_data_.timestamp_;
-    LOG(INFO) << "    type          : " << system_data_.type_;
-    LOG(INFO) << "    is_standalone : "
-        << std::boolalpha << system_data_.is_standalone_;
-    LOG(INFO) << "    id            : " << system_data_.id_;
-    LOG(INFO) << "    config        : " << system_data_.config_;
+    print_data(header, system_data);
   } catch (const std::runtime_error& e) {
     LOG(ERROR) << "failed to save: " << path;
     LOG(ERROR) << e.what();
@@ -107,7 +113,38 @@ bool server_base::load(const std::string& id) {
 
   try {
     LOG(INFO) << "starting load from " << path;
+
+    // data header
+    data_header header;
+
+    getline(ifs, header.magic_);
+    if (!header.is_valid()) {
+      throw JUBATUS_EXCEPTION(
+          jubatus::exception::runtime_error(
+              "invalid file format")
+          << jubatus::exception::error_file_name(path));
+    }
+
+    std::string buf;
+    getline(ifs, buf);
+    header.format_version_ = atoi(buf.c_str());
+    if (!header.verify_format_version()) {
+      throw JUBATUS_EXCEPTION(
+          jubatus::exception::runtime_error(
+              "not compatible file format version")
+          << jubatus::exception::error_file_name(path));
+    }
+
+    getline(ifs, header.jubatus_version_);
+    if (!header.verify_jubatus_version()) {
+      throw JUBATUS_EXCEPTION(
+          jubatus::exception::runtime_error(
+              "not compatible jubatus version")
+          << jubatus::exception::error_file_name(path));
+    }
+
     msgpack::unpacker unpacker;
+    msgpack::unpacked msg;
     while (true) {
         unpacker.reserve_buffer(1024);
         ifs.read(unpacker.buffer(), unpacker.buffer_capacity());
@@ -116,54 +153,48 @@ bool server_base::load(const std::string& id) {
             break;
         }
     }
-    ifs.close();
 
-    msgpack::unpacked msg;
-
-    // format version
-    uint64_t format_version;
-    unpacker.next(&msg);
-    msg.get().convert(&format_version);
-    if (format_version != FORMAT_VERSION) {
-      throw JUBATUS_EXCEPTION(
-          jubatus::exception::runtime_error(
-              "not compatible format: " + format_version)
-          << jubatus::exception::error_file_name(path));
-    }
-
-    // jubatus version
-    std::string version;
-    unpacker.next(&msg);
-    msg.get().convert(&version);
-    if (version != VERSION) {
-      throw JUBATUS_EXCEPTION(
-          jubatus::exception::runtime_error(
-              "not compatible format: " + version)
-          << jubatus::exception::error_file_name(path));
-    }
-
-    // system data containor
+    // system data
     data_containor data;
     system_data_containor system_data;
     unpacker.next(&msg);
     msg.get().convert(&data);
-    if (data.version_ != system_data.version()) {
+    if (!data.verify_version(system_data.current_version)) {
       throw JUBATUS_EXCEPTION(
           jubatus::exception::runtime_error(
-              "not compatible format: " + data.version_)
+              "not compatible file format")
           << jubatus::exception::error_file_name(path));
     }
-    msg.get().convert(&system_data);
 
-    // TBD: user data containor
+    msg.get().convert(&system_data);
+    if (system_data.type_ != argv_.type) {
+      throw JUBATUS_EXCEPTION(
+          jubatus::exception::runtime_error(
+              "invalid engine type")
+          << jubatus::exception::error_file_name(path));
+    }
+
+    if (system_data.config_ != config_) {
+      LOG(WARNING) << "loaded config is different from stored";
+    }
+
+    // user_data
+    for (size_t i = 0; i < user_data_list_.size(); ++i) {
+        unpacker.next(&msg);
+        msg.get().convert(&data);
+        if (!data.verify_version(user_data_list_[i]->current_version)) {
+          throw JUBATUS_EXCEPTION(
+              jubatus::exception::runtime_error(
+                  "not compatible file format")
+              << jubatus::exception::error_file_name(path));
+        }
+        msg.get().convert(user_data_list_[i]);
+    }
 
     LOG(INFO) << "loaded from " << path;
-    LOG(INFO) << "    timestamp     : " << system_data.timestamp_;
-    LOG(INFO) << "    type          : " << system_data.type_;
-    LOG(INFO) << "    is_standalone : "
-        << std::boolalpha << system_data.is_standalone_;
-    LOG(INFO) << "    id            : " << system_data.id_;
-    LOG(INFO) << "    config        : " << system_data.config_;
+    print_data(header, system_data);
+
+    ifs.close();
   } catch (const std::runtime_error& e) {
     ifs.close();
     LOG(ERROR) << "failed to load: " << path;
@@ -178,6 +209,30 @@ void server_base::event_model_updated() {
   if (mixer::mixer* m = get_mixer()) {
     m->updated();
   }
+}
+
+void server_base::register_user_data(user_data_containor* d) {
+  user_data_list_.push_back(d);
+}
+
+void server_base::print_data(const data_header &h, const system_data_containor &s) const {
+    LOG(INFO) << "    magic number    : " << h.magic_;
+    LOG(INFO) << "    format version  : " << h.format_version_;
+    LOG(INFO) << "    jubatus version : " << h.jubatus_version_;
+    LOG(INFO) << "    system_data";
+    LOG(INFO) << "      version       : " << s.version_;
+    LOG(INFO) << "      timestamp     : " << s.timestamp_;
+    LOG(INFO) << "      type          : " << s.type_;
+    LOG(INFO) << "      is_standalone : "
+        << std::boolalpha << s.is_standalone_;
+    LOG(INFO) << "      id            : " << s.id_;
+    LOG(INFO) << "      config        : " << s.config_;
+}
+
+data_header::data_header(const std::string version) {
+  magic_ = "jubatus";
+  format_version_ = current_version;
+  jubatus_version_ = version;
 }
 
 }  // namespace framework

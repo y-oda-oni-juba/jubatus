@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <msgpack.hpp>
 #include <pficommon/lang/scoped_ptr.h>
 #include <pficommon/lang/shared_ptr.h>
 #include "../classifier/classifier_base.hpp"
@@ -33,6 +34,16 @@
 
 namespace jubatus {
 namespace server {
+
+class classifier_data : public framework::user_data_containor {
+ public:
+  mixable_weight_manager wm_;
+  linear_function_mixer clsfer_;
+
+  enum { current_version = 1 };
+
+  MSGPACK_DEFINE(version_, wm_, clsfer_);
+};
 
 class classifier_serv : public framework::server_base {
  public:
@@ -65,11 +76,9 @@ class classifier_serv : public framework::server_base {
   pfi::lang::scoped_ptr<framework::mixer::mixer> mixer_;
   pfi::lang::shared_ptr<framework::mixable_holder> mixable_holder_;
 
-  std::string config_;
   pfi::lang::shared_ptr<fv_converter::datum_to_fv_converter> converter_;
   pfi::lang::shared_ptr<jubatus::classifier::classifier_base> classifier_;
-  linear_function_mixer clsfer_;
-  mixable_weight_manager wm_;
+  classifier_data data_;
 };
 
 }  // namespace server

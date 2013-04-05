@@ -49,6 +49,8 @@ class server_base {
   virtual bool save(const std::string& id);
   virtual bool load(const std::string& id);
   void event_model_updated();
+  void register_user_data(user_data_containor* d);
+  void print_data(const data_header& d, const system_data_containor& s) const;
 
   uint64_t update_count() const {
     return update_count_;
@@ -62,10 +64,13 @@ class server_base {
     return argv_;
   }
 
+ protected:
+  std::string config_;
+
  private:
+  std::vector<user_data_containor*> user_data_list_;
   const server_argv argv_;
   uint64_t update_count_;
-  system_data_containor system_data_;
 };
 
 }  // namespace framework

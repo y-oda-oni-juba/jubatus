@@ -76,15 +76,18 @@ classifier_serv::classifier_serv(
     const framework::server_argv& a,
     const cshared_ptr<lock_service>& zk)
     : server_base(a) {
-  clsfer_.set_model(make_model(a));
-  wm_.set_model(mixable_weight_manager::model_ptr(new weight_manager));
+  data_.version_ = data_.current_version;
+  data_.clsfer_.set_model(make_model(a));
+  data_.wm_.set_model(mixable_weight_manager::model_ptr(new weight_manager));
 
   mixer_.reset(create_mixer(a, zk));
   mixable_holder_.reset(new mixable_holder());
 
   mixer_->set_mixable_holder(mixable_holder_);
-  mixable_holder_->register_mixable(&clsfer_);
-  mixable_holder_->register_mixable(&wm_);
+  mixable_holder_->register_mixable(&data_.clsfer_);
+  mixable_holder_->register_mixable(&data_.wm_);
+
+  register_user_data(&data_);
 }
 
 classifier_serv::~classifier_serv() {
@@ -92,8 +95,8 @@ classifier_serv::~classifier_serv() {
 
 void classifier_serv::get_status(status_t& status) const {
   status_t my_status;
-  clsfer_.get_model()->get_status(my_status);
-  my_status["storage"] = clsfer_.get_model()->type();
+  data_.clsfer_.get_model()->get_status(my_status);
+  my_status["storage"] = data_.clsfer_.get_model()->type();
 
   status.insert(my_status.begin(), my_status.end());
 }
@@ -105,7 +108,7 @@ bool classifier_serv::set_config(const string& config) {
 
   config_ = config;
   converter_ = fv_converter::make_fv_converter(conf.converter);
-  (*converter_).set_weight_manager(wm_.get_model());
+  (*converter_).set_weight_manager(data_.wm_.get_model());
 
   jsonconfig::config param;
   if (conf.parameter) {
@@ -113,7 +116,7 @@ bool classifier_serv::set_config(const string& config) {
   }
   classifier_.reset(
       classifier::classifier_factory::create_classifier(
-          conf.method, param, clsfer_.get_model().get()));
+          conf.method, param, data_.clsfer_.get_model().get()));
 
   // TODO(kuenishi): switch the function when set_config is done
   // because mixing method differs btwn PA, CW, etc...
@@ -181,7 +184,7 @@ bool classifier_serv::clear() {
   check_set_config();
 
   classifier_->clear();
-  wm_.clear();
+  data_.wm_.clear();
   LOG(INFO) << "model cleared: " << argv().name;
   return true;
 }
